@@ -5,11 +5,12 @@ from pdf2image.exceptions import (
     PDFSyntaxError
 )
 import os
+from PIL import Image, ImageDraw
 
 cwd = os.getcwd()
-INPUT_FOLDER = os.path.join(cwd,'pdfs/')
+INPUT_FOLDER = os.path.join(cwd,'pdfs/Paper2')
 OUTPUT_FOLDER = os.path.join(cwd,'output/')
-filename = 'June 2003 QP - Paper 3 CIE Physics IGCSE.pdf'
+filename = '570011-june-2019-question-paper-21.pdf'
 
 # open file
 os.chdir(INPUT_FOLDER)
@@ -25,21 +26,81 @@ for image in images:
     print(image.format)
     '''
 
-def mask(im):
-    height = im.height
-    width = im.width
-    prev_line = 0
-    mask = []
-    for x in range(width):
-        # line is one is any non-white pixels are detected
-        line = 0
-        for y in range(height):
+def strips(im,rotate):
+    ''' Finds the horizontal start and end of regions of vertical non-whitespace.
+    Returns a list of tuples giving horizontal start and end of these regions.'''
+    if rotate == True:
+        im = im.rotate(90, expand=True)
+    left=0
+    right = im.width
+    top = 0
+    bottom = im.height
+    column_tuples = []
+    white = (255,255,255,255)
+    previous = 0
+    for x in range(left,right):
+        # line is one if any non-white pixels are detected
+        current = 0
+        for y in range(top,bottom):
             if im.getpixel((x,y))[0] < 255:
                 # non-white detected, store value and move on
-                line = 1
+                current = 1
                 break
-        mask.append(line)
-    return mask
+        if current == 1 and previous == 0:
+            xstart = x
+        if current == 0 and previous == 1:
+            xend = x
+            if rotate == False:
+                column_tuples.append( (xstart, top, xend, bottom) )
+            else:
+                column_tuples.append( (top, xstart, bottom, xend) )
+        previous = current
+    return column_tuples
 
-m = mask(images[1])
-print(m)
+# select page
+im = images[1]
+# set height and margins of page
+height = im.height
+width = im.width
+rightMargin = 100
+bottomMargin = 125
+top = 0
+left = 0
+right = width-rightMargin
+bottom = height-bottomMargin
+boundingBox = (top,left,right,bottom)
+qVerticalSep = 20
+
+# crop image to bounding box
+im = im.crop( boundingBox )
+# get x coords of strips, select question number strip
+numberColumn = strips(im, False)[0]
+print(numberColumn)
+# crop out the question numbers
+numColImage = im.crop( numberColumn )
+numberStrips = strips(numColImage, True)
+print(numberStrips)
+questionBoxes = []
+
+n = len(numberStrips)
+for i in range(n):
+    qleft = numberColumn[2]+left
+    qtop = numberStrips[i][1]
+    qright = right
+    if numberStrips[i] == numberStrips[-1]:
+        qbottom = bottom
+    else:
+        qbottom = numberStrips[i+1][1] - qVerticalSep
+
+    questionBoxes.append( (qleft,qtop,qright, qbottom) )
+
+im = images[1]
+
+
+print(questionBoxes)
+draw = ImageDraw.Draw(im)
+for box in questionBoxes:
+    draw.rectangle( box , outline='black')
+
+os.chdir(OUTPUT_FOLDER)
+im.save('p.png')
