@@ -15,10 +15,31 @@ filename = 'June 2003 QP - Paper 3 CIE Physics IGCSE.pdf'
 os.chdir(INPUT_FOLDER)
 print('Opening file...')
 images = convert_from_path(filename)
-
+'''
 # create output files
 os.chdir(OUTPUT_FOLDER)
 for image in images:
     image_number = str(images.index(image))
+    file
     image.save('p'.join(image_number,'.png'))
     print(image.format)
+    '''
+
+def mask(im):
+    height = im.height
+    width = im.width
+    prev_line = 0
+    mask = []
+    for x in range(width):
+        # line is one is any non-white pixels are detected
+        line = 0
+        for y in range(height):
+            if im.getpixel((x,y))[0] < 255:
+                # non-white detected, store value and move on
+                line = 1
+                break
+        mask.append(line)
+    return mask
+
+m = mask(images[1])
+print(m)
