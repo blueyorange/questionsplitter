@@ -60,7 +60,7 @@ def strips(im,rotate):
         # line is one if any non-white pixels are detected
         current = 0
         for x in range(left, right):
-            if im.getpixel((x,y))[0] != white:
+            if im.getpixel((x,y))[0] < 255:
                 # non-white detected, store value and move on
                 current = 1
                 break
@@ -69,16 +69,16 @@ def strips(im,rotate):
         if current == 0 and previous == 1:
             yend = y
             if rotate == False:
-                column_tuples.append( (ystart, top, yend, bottom) )
+                column_tuples.append( (left,ystart,right,yend) )
             else:
-                column_tuples.append( (top, ystart, bottom, yend) )
+                column_tuples.append( (ystart, left, yend, bottom) )
         previous = current
     return column_tuples
 
 # crop left margin containing question numbers from main image
 leftMarginImage = im.crop( leftMarginBox )
 # Get coords of regions of non-whitespace
-textBoundingBoxes = strips( leftMarginImage )
+textBoundingBoxes = strips( leftMarginImage, False )
 print(textBoundingBoxes)
 
 
