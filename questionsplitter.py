@@ -6,7 +6,7 @@ from pdf2image.exceptions import (
 )
 import os
 from PIL import Image, ImageDraw
-import pytesseract
+from pytesseract import image_to_string
 
 cwd = os.getcwd()
 INPUT_FOLDER = os.path.join(cwd,'pdfs/Paper2')
@@ -30,9 +30,9 @@ right = width-rightMargin
 bottom = height-bottomMargin
 pageBox = (top,left,right,bottom)
 
-numberMargin = 200
+numberMargin = 180
 
-leftMarginBox = (0,0,numberMargin,im.height)
+leftMarginBox = (0,0,numberMargin,bottom)
 
 '''
 # create output files
@@ -44,7 +44,7 @@ for image in images:
     print(image.format)
     '''
 
-def strips(im,rotate):
+def strips(im,rotate=False, padding=8):
     ''' Finds the horizontal start and end of regions of horizontal non-whitespace.
     Returns a list of tuples giving horizontal start and end of these regions.'''
     if rotate == True:
@@ -65,9 +65,9 @@ def strips(im,rotate):
                 current = 1
                 break
         if current == 1 and previous == 0:
-            ystart = y
+            ystart = y-padding
         if current == 0 and previous == 1:
-            yend = y
+            yend = y+padding
             if rotate == False:
                 column_tuples.append( (left,ystart,right,yend) )
             else:
@@ -75,14 +75,59 @@ def strips(im,rotate):
         previous = current
     return column_tuples
 
-# crop left margin containing question numbers from main image
-leftMarginImage = im.crop( leftMarginBox )
-# Get coords of regions of non-whitespace
-textBoundingBoxes = strips( leftMarginImage, False )
-print(textBoundingBoxes)
+def getNumberBoxes(im, leftMarginBox):
+    # crop left margin containing question numbers from main image
+    leftMarginImage = im.crop( leftMarginBox )
+    # Get bounding boxes of numbers in left margin
+    textBoundingBoxes = strips( leftMarginImage )
+    n = len(textBoundingBoxes)
+    for i in range(n):
+    print('Question: ',i+1)
+    box = textBoundingBoxes[i]
+    if i < n:
+        nextBox = textBoundingBoxes[i+1]
+    else:
+        nextBox = None
+    # For each question number retrieved question bounding box
+    qnumber_image = im.crop(box)
+    # convert image to text with tesseract OCR and strip whitespace
+    captured_string = image_to_string(qnumber_image).strip()
+    # ignore non-numerical text and non-consecutive numbers
+    if not( captured_string.isnumeric() ):
+        continue
+    return textBoundingBoxes
 
-
-
+def getQuestionBoxes(im, numberBoxes, pageBox, qVertSep = 20)
+n = len(textBoundingBoxes)
+for i in range(n):
+    print('Question: ',i+1)
+    box = textBoundingBoxes[i]
+    if i < n:
+        nextBox = textBoundingBoxes[i+1]
+    else:
+        nextBox = None
+    # For each question number retrieved question bounding box
+    qnumber_image = im.crop(box)
+    # convert image to text with tesseract OCR and strip whitespace
+    captured_string = image_to_string(qnumber_image).strip()
+    # ignore non-numerical text and non-consecutive numbers
+    if not( captured_string.isnumeric() ):
+        continue
+    print(captured_string.strip(), captured_string.strip().isnumeric() )
+    # determine bounding box of question from vertical position of question number
+    # left edge is right edge of number box
+    qleft = numberMargin
+    qright = right
+    qtop = box[1]
+    if nextBox:
+        qbottom = nextBox[1]
+    else:
+        qbottom = bottomMargin
+    qBox = (qleft,qtop,qright,qbottom)
+    print(qBox)
+    draw.rectangle(qBox, outline='black')
+os.chdir(OUTPUT_FOLDER)
+im.save('p.png')
 
 '''
     # crop image to bounding box
