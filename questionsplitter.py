@@ -8,44 +8,89 @@ import os
 from PIL import Image, ImageDraw
 from pytesseract import image_to_string, image_to_data, Output
 
-def strips(im, box, padding=12):
-    ''' Finds the horizontal start and end of regions of horizontal non-whitespace.
-    Returns a list of tuples giving horizontal start and end of these regions.'''
-    left = box[0]
-    top = box[1]
-    right = box[2]
-    bottom = box[3]
-    white = (255,255,255,255)
-    previous = 0
-    column_tuples = []
-    for y in range(top,bottom):
-        # line is one if any non-white pixels are detected
-        current = 0
-        for x in range(left, right):
-            if im.getpixel((x,y))[0] < 255:
-                # non-white detected, store value and move on
-                current = 1
-                break
-        if current == 1 and previous == 0:
-            ystart = y-padding
-        if current == 0 and previous == 1:
-            yend = y+padding
-            column_tuples.append( (left,ystart,right,yend) )
-        previous = current
-    return column_tuples
+def getNumBoxes(imageList, box, numMargin, OUTPUT_FOLDER, padding=8):
+    os.chdir(OUTPUT_FOLDER)
+    left=box[0]
+    top=box[1]
+    right=box[0]+numMargin
+    bottom=box[3]
+    output_list = []
+    for im in imageList:
+        # ignore first page
+        if imageList.index(im)==0:
+            continue
+        pageNo = imageList.index(im)
+        print(pageNo)
+        draw = ImageDraw.Draw(im)
+        previous = 0
+        for y in range(top,bottom):
+            qdict={}
+            # line is one if any non-white pixels are detected
+            current = 0
+            for x in range(left,right):
+                if im.getpixel((x,y))[0] < 255:
+                    # non-white detected, store value and move on
+                    current = 1
+                    break
+            if current == 1 and previous == 0:
+                ystart = y-padding
+            if current == 0 and previous == 1:
+                yend = y+padding
+                numBox = (left,ystart,right,yend)
+                qNumber = containsNumber(im, numBox)
+                if qNumber:
+                    # only append if actual question number
+                    qdict['number'] = qNumber
+                    qdict['numBox'] = numBox
+                    qdict['page'] = pageNo
+                    qdict['pageImage'] = im
+                    output_list.append(qdict)
+                    draw.rectangle(numBox, outline = 'black')
+            previous = current
+            '''
+        if qdict['page'] and qudict['page']!=pageNo:
+            # no question number found on page: grab whole page and add to question
+            # get previous question number as this is part of that question
+            qdict['number'] = output_list[-1]['number']
+            qdict['numBox'] = box
+            qdict['page'] = pageNo
+            output_list.append(qdict)
+        '''
+        im.save('p_{}.png'.format(pageNo))
+    n = len(output_list)
+    # cycle through list and create question boxes
+    for i in range(n-1):
+        this_dict = output_list[i]
+        this_page = this_dict['page']
+        (x1,y1,x2,y2) = this_dict['numBox']
+        if i<n:
+            next_dict = output_list[i+1]
+            next_page = next_dict['page']
+            (x3,y3,x4,y4) = next_dict['numBox']
+        if this_page == next_page:
+            # another question on page: make y-end of bounding box top of next
+            this_dict['qBox'] = (x1,y1,box[2],y3-10)
+        else:
+            # last question on page: make bottom of page end of question
+            this_dict['qBox'] = (x1,y1,box[2],box[3])
+        # crop image and save
+        this_dict['qImage'] = this_dict['pageImage'].crop(this_dict['qBox'])
+        this_dict['qImage'].save('q_{}.png'.format(this_dict['number']))
+    return output_list
 
 def containsNumber(im, box):
     image = im.crop(box)
     captured_string = image_to_string(image, config="--psm 10").strip()
-    print(captured_string)
     if captured_string.isnumeric():
-        return True
+        return int(captured_string)
     else:
         return False
 
 def getQuestionBoxes(im, numberBoxes, pageBox, qVertSep = 20):
     qBoxes = []
-    n = len(numberBoxes)
+    # Return page box if no number on page (question must carry over from previous page)
+    if not numberBoxes:
+        return [pageBox]
     for i in range(n):
         thisNumBox = numberBoxes[i]
         if i < (n-1):
@@ -76,82 +121,17 @@ def main():
     print('Opening file...',INPUT_FOLDER,filename)
     pageImages = convert_from_path(filename)
     # select page
-    im = pageImages[12]
+    im = pageImages[1]
     # set height and margins of page from example page
-    height = im.height
-    width = im.width
     rightMargin = 100
     bottomMargin = 125
-    topMargin = 0
-    numberWidth = 70
-    leftMargin = 115
-    numberColumn = (leftMargin,topMargin,leftMargin+numberWidth,im.height-bottomMargin)
+    topMargin = 100
+    numberWidth = 50
+    leftMargin = 125
     pageBox = (leftMargin, topMargin, im.width-rightMargin, im.height-bottomMargin)
-    textBoundingBoxes = strips( im,numberColumn )
-    draw = ImageDraw.Draw(im)
-    draw.rectangle( pageBox )
-    draw.rectangle( numberColumn )
-    for box in textBoundingBoxes:
-        print(box)
-        if containsNumber(im, box):
-            draw.rectangle( box, outline = 'black' )
-        else:
-            draw.rectangle( box, outline = 'red' )
-    os.chdir(OUTPUT_FOLDER)
-    im.save('poo.png')
-    '''
+    print(pageBox)
+    textBoundingBoxes = getNumBoxes(pageImages, pageBox,numberWidth, OUTPUT_FOLDER)
     print(textBoundingBoxes)
-    # get bounding boxes of numbers from page
-    numBoxes = getNumberBoxes(im, numberColumn)
-    drawBoxes(im, numBoxes)
-    draw = ImageDraw.Draw(im)
-    # get bounding boxes of questions using number positions
-    qBoxes = getQuestionBoxes(im,numBoxes,pageBox)
-    drawBoxes(im, qBoxes)
-    print(qBoxes)
-    for qBox in qBoxes:
-        draw.rectangle(qBox, outline='black')
-        qImage = im.crop(qBox)
-        string = image_to_string(qImage)
-        print(string)
-    os.chdir(OUTPUT_FOLDER)
-    im.save('p.png')
-'''
-def justTessTry():
-    '''A failed attempt to use just tesseract to get bounding boxes of numbers'''
-   # Define path variables
-    cwd = os.getcwd()
-    INPUT_FOLDER = os.path.join(cwd,'pdfs/Paper2')
-    OUTPUT_FOLDER = os.path.join(cwd,'output/')
-    filename = '570011-june-2019-question-paper-21.pdf'
-    # open file
-    os.chdir(INPUT_FOLDER)
-    print('Opening file...',INPUT_FOLDER,filename)
-    pageImages = convert_from_path(filename)
-    # select page
-    im = pageImages[12]
-    # set height and margins of page from example page
-    height = im.height
-    width = im.width
-    rightMargin = 100
-    bottomMargin = 125
-    top = 0
-    left = 0
-    qVerticalSep = 20
-    right = width-rightMargin
-    bottom = height-bottomMargin
-    pageBox = (top,left,right,bottom)
-    numberMargin = 180
-    leftMarginBox = (0,0,numberMargin,bottom)
-    imMargin = im.crop( leftMarginBox )
-    # get data from image using pytesseract
-    d = image_to_data(imMargin, output_type=Output.DICT)
-    n_boxes = len(d['level'])
-    draw = ImageDraw.Draw(im)
-    for i in range(n_boxes):
-        box = (d['left'][i], d['top'][i], d['width'][i], d['height'][i])
-        draw.rectangle(box, outline='black')
-    im.save('tess.png')
 
 if __name__ == "__main__":
     main()
