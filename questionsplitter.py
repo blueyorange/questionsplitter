@@ -20,11 +20,10 @@ def getNumBoxes(imageList, box, numMargin, OUTPUT_FOLDER, padding=8):
         if imageList.index(im)==0:
             continue
         pageNo = imageList.index(im)
-        print(pageNo)
         draw = ImageDraw.Draw(im)
         previous = 0
         for y in range(top,bottom):
-            qdict={}
+            questions=[]
             # line is one if any non-white pixels are detected
             current = 0
             for x in range(left,right):
@@ -37,18 +36,24 @@ def getNumBoxes(imageList, box, numMargin, OUTPUT_FOLDER, padding=8):
             if current == 0 and previous == 1:
                 yend = y+padding
                 numBox = (left,ystart,right,yend)
+                if output_list[-1]['page'] == pageNo:
+                    # previous question is on same page need to alter box
+                    (x1,y1,x2,y2) = 
+                    output_list[-1]['qbox'][3] = ystart - padding
+                qBox = (left,ystart,right,bottom)
                 qNumber = containsNumber(im, numBox)
                 if qNumber:
                     # only append if actual question number
                     qdict['number'] = qNumber
                     qdict['numBox'] = numBox
+                    qdict['qBox'] = qBox
                     qdict['page'] = pageNo
                     qdict['pageImage'] = im
                     output_list.append(qdict)
-                    draw.rectangle(numBox, outline = 'black')
+                    draw.rectangle(numBox, fill = 'white')
             previous = current
             '''
-        if qdict['page'] and qudict['page']!=pageNo:
+        if qdict['page'] and qdict['page']!=pageNo:
             # no question number found on page: grab whole page and add to question
             # get previous question number as this is part of that question
             qdict['number'] = output_list[-1]['number']
@@ -67,7 +72,7 @@ def getNumBoxes(imageList, box, numMargin, OUTPUT_FOLDER, padding=8):
             next_dict = output_list[i+1]
             next_page = next_dict['page']
             (x3,y3,x4,y4) = next_dict['numBox']
-        if this_page == next_page:
+        if this_page == next_page or i==n:
             # another question on page: make y-end of bounding box top of next
             this_dict['qBox'] = (x1,y1,box[2],y3-10)
         else:
@@ -131,7 +136,6 @@ def main():
     pageBox = (leftMargin, topMargin, im.width-rightMargin, im.height-bottomMargin)
     print(pageBox)
     textBoundingBoxes = getNumBoxes(pageImages, pageBox,numberWidth, OUTPUT_FOLDER)
-    print(textBoundingBoxes)
 
 if __name__ == "__main__":
     main()
