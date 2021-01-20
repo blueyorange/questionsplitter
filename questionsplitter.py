@@ -20,9 +20,8 @@ class ExamPaper:
         return self
     
     def __next__(self):
-        page = self.page
-        self.page += 1
-        return page
+        self.currentPage += 1
+        return self.getQuestionsFromPage(self.currentPage)
 
     def getQuestionsFromPage(self,pageNumber):
         # get page data from this object
@@ -69,11 +68,15 @@ class ExamPaper:
                     question['number'] = qNumber
                     question['numBox'] = numBox
                     question['qBox'] = qBox
+                    question['image'] = im.crop( qBox )
                     # check for previous question on same page to amend qbox
                     if questions:
                         print("Found previous question. Amending box.")
                         (x1,y1,x2,y2) = questions[-1]['qBox']
-                        questions[-1]['qBox'] = (x1,y1,x2,ystart-padding)
+                        print(x1,y1,x2,y2)
+                        qBox = (x1,y1,x2,ystart-padding)
+                        questions[-1]['qBox'] = qBox
+                        questions[-1]['image'] = im.crop( qBox )
                         print(questions[-1]['qBox'])
                     questions.append(question)
             wasBlack = isBlack
@@ -88,18 +91,30 @@ def containsNumber(im, box):
     else:
         return False
 
+def extractAllQuestions(paper, removeNumbers=False):
+    # iterate through pages
+    pages = iter(paper)
+    for page in pages:
+        for question in page:
+            i = question['number']
+            image = question['image']
+            if removeNumbers=True:
+                # Remove question numbers
+                draw = ImageDraw.Draw(image)
+                draw.rectangle((0,0,30,30), fill='white')
+            image.save('q_{}.png'.format(i))
+
 def main():
     # Define path variables
     cwd = os.getcwd()
-    INPUT_FOLDER = os.path.join(cwd,'pdfs/Paper2')
+    INPUT_FOLDER = os.path.join(cwd,'pdfs/Paper3')
     OUTPUT_FOLDER = os.path.join(cwd,'output/')
-    filename = '570011-june-2019-question-paper-21.pdf'
-    # open file
+    filename = 'June 2003 QP - Paper 3 CIE Physics IGCSE.pdf'
+    # create exam paper object from file
     os.chdir(INPUT_FOLDER)
     paper = ExamPaper(filename)
-    questions = paper.getQuestionsFromPage(3)
-    for q in questions:
-        print('Found question ',q['number']," bbox ",q['qBox'])
+    os.chdir(OUTPUT_FOLDER)
+    extractAllQuestions(paper)
 
 if __name__ == "__main__":
     main()
