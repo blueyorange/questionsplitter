@@ -103,7 +103,7 @@ def extractAllQuestions(paper, removeNumbers=False):
             if removeNumbers==True:
                 # Remove question numbers
                 draw = ImageDraw.Draw(image)
-                draw.rectangle((0,0,30,30), fill='white')
+                draw.rectangle(question['numBox'], fill='white')
             image.save('q_{}.png'.format(i))
         newImages.append(image)
     return newImages
@@ -113,6 +113,8 @@ def reNumberQuestions(paper):
     freeSansBoldFont = ImageFont.truetype(os.path.join(fontsFolder, 'FreeSansBold.ttf'),32)
     # q is the number of the question to be done consecutively
     q = 1
+    old_q = 1
+    remove_questions = [17,21,19]
     pages = iter(paper)
     pageImages = paper.pageImages
     p = 0
@@ -126,13 +128,17 @@ def reNumberQuestions(paper):
             # renumber question
             qstr = str('{}.'.format(q))
             draw.text((x1,y1),qstr,fill='black', font=freeSansBoldFont)
+            old_q +=1
+            if old_q in remove_questions:
+                draw.rectangle(question['qBox'],fill='white')
+                q -= 1
             q += 1
         #pageImages[p].save('p_{}.pdf'.format(p))
         # Renumber pages
-        width = pageNumber[p].width
-        draw.rectangle((0,0,width,225), fill='white')
+        width = pageImages[p].width
+        draw.rectangle((0,0,width,175), fill='white')
         pageNumber = str(p+2)
-        draw.text((1140,130),pageNumber,fill='black', font=freeSansBoldFont)
+        draw.text((width/2,80),pageNumber,fill='black', font=freeSansBoldFont)
         p += 1
     return pageImages
 
@@ -146,9 +152,9 @@ def main():
     os.chdir(INPUT_FOLDER)
     paper = ExamPaper(filename)
     # os.chdir(OUTPUT_FOLDER)
+    images = reNumberQuestions(paper)
     firstPage = images[0]
     images.remove(firstPage)
-    images = reNumberQuestions(paper)
     firstPage.save('renumbered.pdf', save_all=True, append_images=images)
 
 if __name__ == "__main__":
