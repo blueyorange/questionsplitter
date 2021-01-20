@@ -5,7 +5,7 @@ from pdf2image.exceptions import (
     PDFSyntaxError
 )
 import os
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from pytesseract import image_to_string, image_to_data, Output
 
 class ExamPaper:
@@ -20,8 +20,12 @@ class ExamPaper:
         return self
     
     def __next__(self):
-        self.currentPage += 1
-        return self.getQuestionsFromPage(self.currentPage)
+        if self.currentPage < len(self.pageImages):
+            questions = self.getQuestionsFromPage(self.currentPage)
+            self.currentPage += 1
+            return questions
+        else:
+            raise StopIteration
 
     def getQuestionsFromPage(self,pageNumber):
         # get page data from this object
@@ -71,13 +75,10 @@ class ExamPaper:
                     question['image'] = im.crop( qBox )
                     # check for previous question on same page to amend qbox
                     if questions:
-                        print("Found previous question. Amending box.")
                         (x1,y1,x2,y2) = questions[-1]['qBox']
-                        print(x1,y1,x2,y2)
                         qBox = (x1,y1,x2,ystart-padding)
                         questions[-1]['qBox'] = qBox
                         questions[-1]['image'] = im.crop( qBox )
-                        print(questions[-1]['qBox'])
                     questions.append(question)
             wasBlack = isBlack
         return questions
@@ -94,27 +95,61 @@ def containsNumber(im, box):
 def extractAllQuestions(paper, removeNumbers=False):
     # iterate through pages
     pages = iter(paper)
+    newImages = []
     for page in pages:
         for question in page:
             i = question['number']
             image = question['image']
-            if removeNumbers=True:
+            if removeNumbers==True:
                 # Remove question numbers
                 draw = ImageDraw.Draw(image)
                 draw.rectangle((0,0,30,30), fill='white')
             image.save('q_{}.png'.format(i))
+        newImages.append(image)
+    return newImages
+
+def reNumberQuestions(paper):
+    fontsFolder = 'usr/share/fonts'
+    freeSansBoldFont = ImageFont.truetype(os.path.join(fontsFolder, 'FreeSansBold.ttf'),32)
+    # q is the number of the question to be done consecutively
+    q = 1
+    pages = iter(paper)
+    pageImages = paper.pageImages
+    p = 0
+    for page in pages:
+        print(page)
+        for question in page:
+            # blank out original question number
+            draw = ImageDraw.Draw( pageImages[p] )
+            (x1,y1,x2,y2) = question['numBox']
+            draw.rectangle((x1,y1,x2,y2), fill='white')
+            # renumber question
+            qstr = str('{}.'.format(q))
+            draw.text((x1,y1),qstr,fill='black', font=freeSansBoldFont)
+            q += 1
+        #pageImages[p].save('p_{}.pdf'.format(p))
+        # Renumber pages
+        width = pageNumber[p].width
+        draw.rectangle((0,0,width,225), fill='white')
+        pageNumber = str(p+2)
+        draw.text((1140,130),pageNumber,fill='black', font=freeSansBoldFont)
+        p += 1
+    return pageImages
 
 def main():
     # Define path variables
     cwd = os.getcwd()
-    INPUT_FOLDER = os.path.join(cwd,'pdfs/Paper3')
+    INPUT_FOLDER = os.path.join(cwd,'f4_exam')
     OUTPUT_FOLDER = os.path.join(cwd,'output/')
-    filename = 'June 2003 QP - Paper 3 CIE Physics IGCSE.pdf'
+    filename = 'F4_exam.pdf'
     # create exam paper object from file
     os.chdir(INPUT_FOLDER)
     paper = ExamPaper(filename)
-    os.chdir(OUTPUT_FOLDER)
-    extractAllQuestions(paper)
+    # os.chdir(OUTPUT_FOLDER)
+    firstPage = images[0]
+    images.remove(firstPage)
+    images = reNumberQuestions(paper)
+    firstPage.save('renumbered.pdf', save_all=True, append_images=images)
 
 if __name__ == "__main__":
     main()
