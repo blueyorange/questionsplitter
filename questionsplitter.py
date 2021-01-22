@@ -111,6 +111,7 @@ def extractAllQuestions(paper, removeNumbers=False):
 def reNumberQuestions(paper):
     fontsFolder = 'usr/share/fonts'
     freeSansBoldFont = ImageFont.truetype(os.path.join(fontsFolder, 'FreeSansBold.ttf'),32)
+    freeSansFont = ImageFont.truetype(os.path.join(fontsFolder, 'FreeSans.ttf'),18)
     # q is the number of the question to be done consecutively
     q = 1
     old_q = 1
@@ -136,9 +137,15 @@ def reNumberQuestions(paper):
         #pageImages[p].save('p_{}.pdf'.format(p))
         # Renumber pages
         width = pageImages[p].width
+        height = pageImages[p].height
+        # remove old pagenumbers and PMT reference
         draw.rectangle((0,0,width,175), fill='white')
+        # remove copyright notice and question reference
+        draw.rectangle((0,height-200,width,height), fill='white')
         pageNumber = str(p+2)
         draw.text((width/2,80),pageNumber,fill='black', font=freeSansBoldFont)
+        # Add footer
+        draw.text((200,height-150),'CONCORD COLLEGE IGCSE PHYSICS FORM 4 JANUARY EXAM 2021', fill='black', font=freeSansFont)
         p += 1
     return pageImages
 
@@ -155,7 +162,7 @@ def main():
     images = reNumberQuestions(paper)
     firstPage = images[0]
     images.remove(firstPage)
-    firstPage.save('renumbered.pdf', save_all=True, append_images=images)
+    firstPage.save('renumbered2.pdf', save_all=True, append_images=images)
 
 if __name__ == "__main__":
     main()
