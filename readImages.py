@@ -14,25 +14,25 @@ images = []
 for filename in filenames:
     print("Opening file ",filename)
     im = Image.open(filename)
-    h = im.height
-    w = im.width
-    im = im.crop((0,0,w,h))
-    print("Height ",h)
+    height = im.height
+    width = im.width
+    print(width,height)
     leftMargin = 185
     qNumber = os.path.splitext(filename)[0]
     numbersBox = (0,0,leftMargin,im.width)
     numbersImage = im.crop(numbersBox)
-    lines = image_to_boxes(numbersImage)
+    lines = image_to_boxes(numbersImage).splitlines()
     print(lines)
     draw = ImageDraw.Draw(im)
     for line in lines:
         data = line.split(" ")
+        print(data)
         character = data[0]
         (x,y,w,h) = tuple([int(data[i]) for i in range(1,5)])
-        box = (x,y,w,h)
+        box = (x,height-y,w,height-h)
         if character.isnumeric():
             print("Found character ",character," replacing at ",(x,y-1500,w,h))
-            draw.rectangle( box, fill='white')
+            draw.rectangle( (0+100,0+100,width-100,height-300), fill='white', outline='black')
             draw.text( (x,y),qNumber,fill='black', font=freeSansFont )
     im.save('{}_new.png'.format(qNumber))
     images.append(im)

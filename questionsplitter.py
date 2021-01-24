@@ -109,13 +109,13 @@ def extractAllQuestions(paper, removeNumbers=False):
     return newImages
 
 def reNumberQuestions(paper):
-    fontsFolder = 'usr/share/fonts'
+    fontsFolder = 'Users/russell/Library/Fonts/'
     freeSansBoldFont = ImageFont.truetype(os.path.join(fontsFolder, 'FreeSansBold.ttf'),32)
     freeSansFont = ImageFont.truetype(os.path.join(fontsFolder, 'FreeSans.ttf'),18)
     # q is the number of the question to be done consecutively
     q = 1
     old_q = 1
-    remove_questions = [17,21,19]
+    remove_questions = [12,19]
     pages = iter(paper)
     pageImages = paper.pageImages
     p = 0
@@ -129,10 +129,10 @@ def reNumberQuestions(paper):
             # renumber question
             qstr = str('{}.'.format(q))
             draw.text((x1,y1),qstr,fill='black', font=freeSansBoldFont)
-            old_q +=1
             if old_q in remove_questions:
                 draw.rectangle(question['qBox'],fill='white')
                 q -= 1
+            old_q +=1
             q += 1
         #pageImages[p].save('p_{}.pdf'.format(p))
         # Renumber pages
@@ -162,7 +162,7 @@ def main():
     images = reNumberQuestions(paper)
     firstPage = images[0]
     images.remove(firstPage)
-    firstPage.save('renumbered2.pdf', save_all=True, append_images=images)
+    firstPage.save('renumbered_new.pdf', save_all=True, append_images=images)
 
 if __name__ == "__main__":
     main()
