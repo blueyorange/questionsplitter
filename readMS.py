@@ -20,6 +20,6 @@ answerRegEx = re.compile('\d+\s[ABCDc]')
 
 matches = answerRegEx.findall(text)
 print(matches.sort())
-answers = {match.split(" ")[0]:match.split(" ")[1] for match in matches}
-answers = {i:answers[str(i)] for i in range(1,41)}
+answers = {match.split(" ")[0]:match.split(" ")[1].upper() for match in matches}
+answers = {str(i):answers[str(i)] for i in range(1,41)}
 print(answers)
