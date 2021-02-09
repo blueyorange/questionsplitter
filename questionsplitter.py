@@ -7,12 +7,14 @@ from pdf2image.exceptions import (
 import os
 from PIL import Image, ImageDraw, ImageFont
 from pytesseract import image_to_string, image_to_data, Output
+import re
 
 class ExamPaper:
-    def __init__(self,filename):
+    def __init__(self, questionPaper, markScheme):
         '''A class to extract data from an exam paper pdf'''
-        self.filename = filename
-        self.pageImages = convert_from_path(filename)
+        self.paperName = questionPaper.replace("QP","")
+        self.questionPaperImages = convert_from_path(questionPaper)
+        self.markSchemeImages = convert_from_path(markScheme)
         self.pages={}
     
     def __iter__(self):
@@ -20,17 +22,26 @@ class ExamPaper:
         return self
     
     def __next__(self):
-        if self.currentPage < len(self.pageImages):
+        if self.currentPage < len(self.questionPaperImages):
             questions = self.getQuestionsFromPage(self.currentPage)
             self.currentPage += 1
             return questions
         else:
             raise StopIteration
 
+    def readMS(self):
+        im = self.markSchemeImages[1]
+        text = image_to_string(im)
+        answerRegEx = re.compile('\d+\s[ABCDc]')
+        matches = answerRegEx.findall(text)
+        answers = {match.split(" ")[0]:match.split(" ")[1].upper() for match in matches}
+        answers = {str(i):answers[str(i)] for i in range(1,41)}
+        return answers
+
     def getQuestionsFromPage(self,pageNumber):
         # get page data from this object
         print("Scanning page ", pageNumber)
-        im = self.pageImages[pageNumber]
+        im = self.questionPaperImages[pageNumber]
         pageHeight = im.height
         pageWidth = im.width
         # set defaults for page margins and bounding box padding
@@ -60,7 +71,7 @@ class ExamPaper:
             if isBlack == 0 and wasBlack == 1:
                 # end of text area: record start and end of region as bounding box of number
                 yend = y+padding
-                numBox = (left,ystart,left+numberWidth,yend)
+                numBox = (left,ystart,left+numberWidth*2,yend)
                 qBox = (left,ystart,right,bottom)
                 # estimate bounding box of question
                 qNumber = containsNumber(im, numBox)
@@ -92,20 +103,8 @@ def containsNumber(im, box):
     else:
         return False
 
-def extractAllQuestions(paper, removeNumbers=False):
-    # iterate through pages
-    pages = iter(paper)
-    newImages = []
-    for page in pages:
-        for question in page:
-            i = question['number']
-            image = question['image']
-            if removeNumbers==True:
-                # Remove question numbers
-                draw = ImageDraw.Draw(image)
-                draw.rectangle(question['numBox'], fill='white')
-            image.save('q_{}.png'.format(i))
-        newImages.append(image)
+def extractAllQuestions(paper, removeNumbers=True):
+
     return newImages
 
 def reNumberQuestions(paper):
@@ -117,13 +116,13 @@ def reNumberQuestions(paper):
     old_q = 1
     remove_questions = [12,19]
     pages = iter(paper)
-    pageImages = paper.pageImages
+    questionPaperImages = paper.questionPaperImages
     p = 0
     for page in pages:
         print(page)
         for question in page:
             # blank out original question number
-            draw = ImageDraw.Draw( pageImages[p] )
+            draw = ImageDraw.Draw( questionPaperImages[p] )
             (x1,y1,x2,y2) = question['numBox']
             draw.rectangle((x1,y1,x2,y2), fill='white')
             # renumber question
@@ -134,10 +133,10 @@ def reNumberQuestions(paper):
                 q -= 1
             old_q +=1
             q += 1
-        #pageImages[p].save('p_{}.pdf'.format(p))
+        #questionPaperImages[p].save('p_{}.pdf'.format(p))
         # Renumber pages
-        width = pageImages[p].width
-        height = pageImages[p].height
+        width = questionPaperImages[p].width
+        height = questionPaperImages[p].height
         # remove old pagenumbers and PMT reference
         draw.rectangle((0,0,width,175), fill='white')
         # remove copyright notice and question reference
@@ -147,22 +146,61 @@ def reNumberQuestions(paper):
         # Add footer
         draw.text((200,height-150),'CONCORD COLLEGE IGCSE PHYSICS FORM 4 JANUARY EXAM 2021', fill='black', font=freeSansFont)
         p += 1
-    return pageImages
+    return questionPaperImages
 
 def main():
     # Define path variables
     cwd = os.getcwd()
-    INPUT_FOLDER = os.path.join(cwd,'f4_exam')
+    INPUT_FOLDER = os.path.join(cwd,'downloads/Paper1/')
     OUTPUT_FOLDER = os.path.join(cwd,'output/')
+    # Get list of files
+    os.chdir(INPUT_FOLDER)
+    filenames = os.listdir()
+    filenames.sort()
+    # Change to output directory
+    # Assume that filenames alternate questionpaper, mark scheme...
+    # Iterate over all filenames
+    for i in range(0,len(filenames),2):
+        os.chdir(INPUT_FOLDER)
+        # alphabetically, MS is before QP
+        paper = ExamPaper(filenames[i+1],filenames[i])
+        os.chdir(OUTPUT_FOLDER)
+        os.mkdir(paper.paperName)
+        os.chdir(paper.paperName)
+        # Get answers from mark scheme
+        answers = paper.readMS()
+        # iterate through pages
+        pages = iter(paper)
+        # list of dicts to store information about each question in a single paper
+        questions = []
+        for page in pages:
+            # page contains question data from a single page (no answer)
+            for question in page:
+                question['markscheme'] = answers[i]
+                i = question['number']
+                image = question['image']
+                if removeNumbers==True:
+                    # Remove question numbers
+                    draw = ImageDraw.Draw(image)
+                    draw.rectangle(question['numBox'], fill='white')
+                image.save('q_{}.png'.format(i))
+            print(page)
+            questions.append(page)
+        
+        # write output
+        print(questions)
+
+
+    '''
     filename = 'F4_exam.pdf'
     # create exam paper object from file
-    os.chdir(INPUT_FOLDER)
     paper = ExamPaper(filename)
     # os.chdir(OUTPUT_FOLDER)
     images = reNumberQuestions(paper)
     firstPage = images[0]
     images.remove(firstPage)
     firstPage.save('renumbered_new.pdf', save_all=True, append_images=images)
+    '''
 
 if __name__ == "__main__":
     main()

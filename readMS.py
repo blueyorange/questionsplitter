@@ -11,13 +11,13 @@ import re
 
 INPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper1')
 os.chdir(INPUT_FOLDER)
+# get list of images from path
 imagelist = convert_from_path('June 2003 MS - Paper 1 CIE Physics IGCSE.pdf')
-
+# answers are on second page
 im = imagelist[1]
 text = image_to_string(im)
 print(text)
 answerRegEx = re.compile('\d+\s[ABCDc]')
-
 matches = answerRegEx.findall(text)
 print(matches.sort())
 answers = {match.split(" ")[0]:match.split(" ")[1].upper() for match in matches}
