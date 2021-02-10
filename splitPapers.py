@@ -10,6 +10,7 @@ from pytesseract import image_to_string, image_to_data, image_to_boxes, Output
 import re
 
 INPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper1')
+OUTPUT_FOLDER = os.path.join(os.getcwd(),'output')
 os.chdir(INPUT_FOLDER)
 filenames = os.listdir()
 filenames.sort()
@@ -34,7 +35,7 @@ def extractMS(filename):
     print(answers)
     return answers
 
-def getQuestionNumberBoxes(filename):
+def getQuestionNumberBoxes(pages):
     '''Searches through a paper for question numbers and returns the page
     number and bounding boxes'''
     # set the width of the left margin in which to find question numbers
@@ -44,7 +45,6 @@ def getQuestionNumberBoxes(filename):
     max_number_height = 20
     # Reg Ex to look for numbers in strings (might have artifacts)
     numRe = re.compile('\d+')
-    pages = convert_from_path(filename)
     # iterate through pages
     questions = []
     tokens = []
@@ -75,11 +75,55 @@ def getQuestionNumberBoxes(filename):
             right = left + data['width'][i]
             bottom = data['top'][i] + data['height'][i]
             box = (left,top,right,bottom)
-            question['box'] = box
+            question['numbox'] = box
             question['page'] = pagenum
             questions.append(question)
             print(questions[-1])
     return questions
 
-questions = getQuestionNumberBoxes(questionPaper)
-print(questions)
+def removeQuestionNumbers(questions, pageImages):
+    '''Iterates through each page drawing a white filled rectangle over the question numbers'''
+    for question in questions:
+        pageImage = pageImages[question['page']]
+        print("Boxing question ",question['number'])
+        draw = ImageDraw.Draw(pageImage)
+        draw.rectangle(question['numbox'], fill='white')
+
+def drawBoundingBoxes(questions, pageImages):
+    '''Draws a box around each question'''
+    for question in questions:
+        pageImage = pageImages[question['page']]
+        print("Boxing question ",question['number'])
+        draw = ImageDraw.Draw(pageImage)
+        draw.rectangle(question['box'], outline='red')
+    
+def getQuestionBoundingBoxes(questions, pageWidth, pageHeight):
+    '''Takes the list of questions and works out a bounding box for each question
+    based on the bounding box for each question number.'''
+    last_item = len(questions)-1
+    for i,this_question in enumerate(questions):
+        last_question = (i==last_item)
+        if not last_question:
+            next_question = questions[i+1]
+            last_question_on_page = (this_question['page']==next_question['page'])
+            if not last_question_on_page:
+                this_question['box'] = (this_question['numbox'][0],this_question['numbox'][1],
+                    pageWidth-this_question['numbox'][0],next_question['numbox'][1]-10)
+                continue
+        # is last question or last question on page
+        this_question['box'] = (this_question['numbox'][0],this_question['numbox'][1],
+        pageWidth-this_question['numbox'][0],pageHeight-120)
+
+def saveImages(pageImages, path):
+    firstPage = pageImages[0]
+    pageImages.remove(firstPage)
+    firstPage.save(path, save_all=True, append_images=pageImages)
+
+pageImages = convert_from_path(questionPaper)
+pageWidth = pageImages[0].width
+pageHeight = pageImages[0].height
+questions = getQuestionNumberBoxes(pageImages)
+#removeQuestionNumbers(questions,pageImages)
+getQuestionBoundingBoxes(questions, pageWidth, pageHeight)
+drawBoundingBoxes(questions, pageImages)
+saveImages(pageImages,os.path.join(OUTPUT_FOLDER,questionPaper))
