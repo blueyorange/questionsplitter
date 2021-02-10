@@ -40,25 +40,46 @@ def getQuestionNumberBoxes(filename):
     # set the width of the left margin in which to find question numbers
     numMargin = 170
     # Look for question 1 first
-    current_question = 1
+    max_number_width = 40
+    max_number_height = 20
+    # Reg Ex to look for numbers in strings (might have artifacts)
     numRe = re.compile('\d+')
-    imagelist = convert_from_path(filename)
-    im = imagelist[1]
-    data = image_to_data(im, output_type=Output.DICT)
-    print(data)
-    # iterate through tesseract data
-    results = []
-    for i, value in enumerate(data):
-        # ignore if no numerical digits found
-        numeric = numRe.findall(data['text'][i])
-        print(data['text'][i])
-        if not numeric: continue
-        left = data['left'][i]
-        top = data['top'][i]
-        right = data['top'][i] + data['width'][i]
-        bottom = data['top'][i] + data['height'][i]
-        box = (left,top,right,bottom)
-        print(numeric,box)
+    pages = convert_from_path(filename)
+    # iterate through pages
+    questions = []
+    tokens = []
+    for pagenum,page in enumerate(pages):
+        data = image_to_data(page, output_type=Output.DICT, config='--psm 6')
+        # list to store words found in each question
+        # iterate through each word found by tesseract
+        for i, text in enumerate(data['text']):
+            question = {}
+            # ignore if not numeric
+            numeric = numRe.findall(text)
+            # store text as word if not empty string
+            if text: tokens.append(text)
+            # get bounding box data
+            left = data['left'][i]
+            # check for final token in list and append to current question if so
+            if page == pages[-1]:
+                questions[-1]['tokens'] = tokens
+            # check for a number that is in the left margin
+            if not numeric: continue
+            if left > numMargin: continue
+            # new question found: append word list to previous question if there is one
+            if questions:
+                questions[-1]['tokens'] = tokens
+            tokens = []
+            question['number'] = numeric[0]
+            top = data['top'][i]
+            right = left + data['width'][i]
+            bottom = data['top'][i] + data['height'][i]
+            box = (left,top,right,bottom)
+            question['box'] = box
+            question['page'] = pagenum
+            questions.append(question)
+            print(questions[-1])
+    return questions
 
-
-getQuestionNumberBoxes(questionPaper)
+questions = getQuestionNumberBoxes(questionPaper)
+print(questions)
