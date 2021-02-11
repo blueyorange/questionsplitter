@@ -9,14 +9,6 @@ from PIL import Image, ImageDraw, ImageFont
 from pytesseract import image_to_string, image_to_data, image_to_boxes, Output
 import re
 
-INPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper1')
-OUTPUT_FOLDER = os.path.join(os.getcwd(),'output')
-os.chdir(INPUT_FOLDER)
-filenames = os.listdir()
-filenames.sort()
-questionPaper = filenames[1]
-markScheme = filenames[0]
-
 def extractMS(filename):
     ''' Reads a multiple choice mark scheme and returns dict of question number:answer'''
     # get list of images from path
@@ -35,19 +27,21 @@ def extractMS(filename):
     print(answers)
     return answers
 
-def getQuestionNumberBoxes(pages):
+def getQuestionData(pages):
     '''Searches through a paper for question numbers and returns the page
-    number and bounding boxes'''
+    number, question number, bounding boxes for the question number and the whole question,
+    and a list of word tokens so that the question may be classified by content.'''
     # set the width of the left margin in which to find question numbers
     numMargin = 170
-    # Look for question 1 first
-    max_number_width = 40
-    max_number_height = 20
+    # MIss out page footer
+    bottomMargin = 140
     # Reg Ex to look for numbers in strings (might have artifacts)
     numRe = re.compile('\d+')
     # iterate through pages
     questions = []
     tokens = []
+    question = {}
+    prev_question = {}
     for pagenum,page in enumerate(pages):
         data = image_to_data(page, output_type=Output.DICT, config='--psm 6')
         # list to store words found in each question
@@ -77,8 +71,21 @@ def getQuestionNumberBoxes(pages):
             box = (left,top,right,bottom)
             question['numbox'] = box
             question['page'] = pagenum
+            # attach whole question bounding box info to previous question
+            if questions:
+                prev_question = questions[-1]
+                if prev_question['page'] == question['page']:
+                    # previous question is on same page
+                    prev_question['box'] = (prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,top)
+                else:
+                    # previous question is on different page so box ends at page bottom
+                    prev_question['box'] = (prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,page.height-bottomMargin)
+                print(prev_question['number'],prev_question['box'])
             questions.append(question)
-            print(questions[-1])
+    if questions:
+        # last question
+        questions[-1]['box'] = (questions[-1]['numbox'][0],questions[-1]['numbox'][1],page.width-prev_question['numbox'][0],page.height-bottomMargin)
+        print(questions[-1]['number'],questions[-1]['box'])
     return questions
 
 def removeQuestionNumbers(questions, pageImages):
@@ -96,34 +103,24 @@ def drawBoundingBoxes(questions, pageImages):
         print("Boxing question ",question['number'])
         draw = ImageDraw.Draw(pageImage)
         draw.rectangle(question['box'], outline='red')
-    
-def getQuestionBoundingBoxes(questions, pageWidth, pageHeight):
-    '''Takes the list of questions and works out a bounding box for each question
-    based on the bounding box for each question number.'''
-    last_item = len(questions)-1
-    for i,this_question in enumerate(questions):
-        last_question = (i==last_item)
-        if not last_question:
-            next_question = questions[i+1]
-            last_question_on_page = (this_question['page']==next_question['page'])
-            if not last_question_on_page:
-                this_question['box'] = (this_question['numbox'][0],this_question['numbox'][1],
-                    pageWidth-this_question['numbox'][0],next_question['numbox'][1]-10)
-                continue
-        # is last question or last question on page
-        this_question['box'] = (this_question['numbox'][0],this_question['numbox'][1],
-        pageWidth-this_question['numbox'][0],pageHeight-120)
 
 def saveImages(pageImages, path):
     firstPage = pageImages[0]
     pageImages.remove(firstPage)
     firstPage.save(path, save_all=True, append_images=pageImages)
 
+INPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper1')
+OUTPUT_FOLDER = os.path.join(os.getcwd(),'output')
+os.chdir(INPUT_FOLDER)
+filenames = os.listdir()
+filenames.sort()
+questionPaper = filenames[1]
+print("Examining ",questionPaper)
+markScheme = filenames[0]
 pageImages = convert_from_path(questionPaper)
 pageWidth = pageImages[0].width
 pageHeight = pageImages[0].height
-questions = getQuestionNumberBoxes(pageImages)
-#removeQuestionNumbers(questions,pageImages)
-getQuestionBoundingBoxes(questions, pageWidth, pageHeight)
+questions = getQuestionData(pageImages)
+removeQuestionNumbers(questions,pageImages)
 drawBoundingBoxes(questions, pageImages)
 saveImages(pageImages,os.path.join(OUTPUT_FOLDER,questionPaper))
