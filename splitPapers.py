@@ -17,14 +17,11 @@ def extractMS(filename):
     im = imagelist[1]
     # get text from page using pytesseract
     text = image_to_string(im)
-    print(text)
     # define RegEx and find matches
     answerRegEx = re.compile('\d+\s[ABCDc]')
     matches = answerRegEx.findall(text)
-    print(matches.sort())
     answers = {match.split(" ")[0]:match.split(" ")[1].upper() for match in matches}
     answers = {str(i):answers[str(i)] for i in range(1,41)}
-    print(answers)
     return answers
 
 def getQuestionData(pages):
@@ -80,12 +77,10 @@ def getQuestionData(pages):
                 else:
                     # previous question is on different page so box ends at page bottom
                     prev_question['box'] = (prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,page.height-bottomMargin)
-                print(prev_question['number'],prev_question['box'])
             questions.append(question)
     if questions:
         # last question
         questions[-1]['box'] = (questions[-1]['numbox'][0],questions[-1]['numbox'][1],page.width-prev_question['numbox'][0],page.height-bottomMargin)
-        print(questions[-1]['number'],questions[-1]['box'])
     return questions
 
 def removeQuestionNumbers(questions, pageImages):
@@ -116,11 +111,13 @@ filenames = os.listdir()
 filenames.sort()
 questionPaper = filenames[1]
 print("Examining ",questionPaper)
-markScheme = filenames[0]
+markScheme = extractMS(filenames[0])
 pageImages = convert_from_path(questionPaper)
-pageWidth = pageImages[0].width
-pageHeight = pageImages[0].height
 questions = getQuestionData(pageImages)
+# Add mark scheme data to question list
+for q in questions:
+    q['answer'] = markScheme[q['number']]
+print(questions)
 removeQuestionNumbers(questions,pageImages)
 drawBoundingBoxes(questions, pageImages)
 saveImages(pageImages,os.path.join(OUTPUT_FOLDER,questionPaper))
