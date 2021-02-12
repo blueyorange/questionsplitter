@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pytesseract import image_to_string, image_to_data, image_to_boxes, Output
 import re
 import string
+import json
 
 def extractMS(filename):
     ''' Reads a multiple choice mark scheme and returns dict of question number:answer'''
@@ -81,6 +82,7 @@ def getQuestionData(pages):
                 else:
                     # previous question is on different page so box ends at page bottom
                     prev_question['box'] = (prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,page.height-bottomMargin)
+            print('Processed question ',question['number'],' on page ',question['page'])
             questions.append(question)
     if questions:
         # last question
@@ -145,12 +147,10 @@ def topics(tokens):
                 topic_result = topic
     return (topic_result,keyword_matches)
 
-def saveQuestionData(questions,pageImages):
-    
-
 INPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper1')
 OUTPUT_FOLDER = os.path.join(os.getcwd(),'output')
 os.chdir(INPUT_FOLDER)
+# Retrieve list fo files from target folder and sort
 filenames = os.listdir()
 filenames.sort()
 questionPaper = filenames[1]
@@ -158,11 +158,26 @@ print("Examining ",questionPaper)
 markScheme = extractMS(filenames[0])
 pageImages = convert_from_path(questionPaper)
 questions = getQuestionData(pageImages)
-# Add mark scheme data to question list
+
+# Save cropped question image and question data
+os.chdir(OUTPUT_FOLDER)
+# make directory with filename of paper
+dirname = os.path.splitext(questionPaper)[0]
+os.mkdir(dirname)
+os.chdir(dirname)
+# Add mark scheme answers and topic and keyword data to question list
 for q in questions:
     q['answer'] = markScheme[q['number']]
     q['topic'],q['keywords'] = topics(q['tokens'])
     print(q['number'],q['topic'],q['keywords'])
-removeQuestionNumbers(questions,pageImages)
-drawBoundingBoxes(questions, pageImages)
-saveImages(pageImages,os.path.join(OUTPUT_FOLDER,questionPaper))
+
+    # crop image and remove question number
+    im = pageImages[q['page']]
+    draw = ImageDraw.Draw(im)
+    draw.rectangle(q['numbox'], fill='white')
+    cropped = im.crop(q['box'])
+    fileprefix = 'Q{}'.format(q['number'])
+    cropped.save(fileprefix+'.png')
+    with open(fileprefix+'.json','w') as fp:
+        json.dump(q, fp)
+
