@@ -8,6 +8,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from pytesseract import image_to_string, image_to_data, image_to_boxes, Output
 import re
+import string
 
 def extractMS(filename):
     ''' Reads a multiple choice mark scheme and returns dict of question number:answer'''
@@ -39,6 +40,7 @@ def getQuestionData(pages):
     tokens = []
     question = {}
     prev_question = {}
+    regex = re.compile('[%s]' % re.escape(string.punctuation))
     for pagenum,page in enumerate(pages):
         data = image_to_data(page, output_type=Output.DICT, config='--psm 6')
         # list to store words found in each question
@@ -47,8 +49,10 @@ def getQuestionData(pages):
             question = {}
             # ignore if not numeric
             numeric = numRe.findall(text)
+            # remove punctuation from token
+            token = regex.sub('',text)
             # store text as word if not empty string
-            if text: tokens.append(text)
+            if text: tokens.append(token)
             # get bounding box data
             left = data['left'][i]
             # check for final token in list and append to current question if so
@@ -95,7 +99,6 @@ def drawBoundingBoxes(questions, pageImages):
     '''Draws a box around each question'''
     for question in questions:
         pageImage = pageImages[question['page']]
-        print("Boxing question ",question['number'])
         draw = ImageDraw.Draw(pageImage)
         draw.rectangle(question['box'], outline='red')
 
@@ -103,6 +106,47 @@ def saveImages(pageImages, path):
     firstPage = pageImages[0]
     pageImages.remove(firstPage)
     firstPage.save(path, save_all=True, append_images=pageImages)
+
+def topics(tokens):
+    topics = {'1.1 Length & Time' : ['length','volume','time','clock'],
+        '1.2 Motion' : ['acceleration','velocity','deceleration'],
+        '1.3 Mass and weight' : ['mass','weight','planet'],
+        '1.4 Density' : ['density','float'],
+        '1.5.1 Effects of Forces' : ['force','extension','resultant','friction','circle','circular','spring'],
+        '1.5.2-4 Turning effects' : ['pivot','moment','centre','seesaw'],
+        '1.5.5 Scalars and vectors' : ['vector','scalar','magnitude'],
+        '1.6 Momentum' : ['momentum','impulse'],
+        '1.7 Energy, work and power': ['kinetic','chemical','conservation','nuclear','renewable','work','power'],
+        '1.8 Pressure' : ['barometer','manometer','pressure'],
+        '2.1 Simple kinetic molecular model of matter' : ['solid','liquid','gas','particle','brownian','evaporation','gas'],
+        '2.2 Thermal properties and temperature' : ['temperature','thermometer','heat capacity','thermal','state'],
+        '2.3 Thermal processes' : ['conduction','convection','infrared'],
+        '3.1 General wave properties' : ['vibration','reflection','refraction','diffraction','wavelength','wave'],
+        '3.2 Light' : ['incidence','virtual','real','lens','lenses'],
+        '3.3 Electromagnetic Spectrum' : ['microwaves','infra-red','x-rays','electromagnetic'],
+        '3.4 Sound' : ['ultrasound','pitch','longitudinal','sound','echo'],
+        '4.1 Magnetism' : ['magnet','magnets','magnetism','magnetisation'],
+        '4.2 Electrical quantities' : ['charge','electrostatic','induction','conductor','insulator','volt','voltage','electrical'],
+        '4.3 Electric circuits' : ['circuit','lamp','resistance','current','thermistor','ldr'],
+        '4.4 Digital electronics' : ['logic','digital','analogue'],
+        '4.5 Dangers of electricity' : ['earth','earthing','live','fuse'],
+        '4.6 Electromagnetic effects' : ['e.m.f.','induced','transformer','motor'],
+        '5.1 The nuclear atom ' : ['protons','neutrons','proton','nuclide','isotope','oscilloscope'],
+        '5.2 Radioactivity' : ['bparticles','yrays','alpha','beta','gamma','background','decay','halflife','radioactive']}
+    
+    topicList = []
+    topic_result = None
+    keyword_matches = []
+    for topic,keywords in topics.items():
+        for keyword in keywords:
+            if keyword in tokens:
+                keyword_matches.append(keyword)
+                if topic not in topicList: topicList.append(topic)
+                topic_result = topic
+    return (topic_result,keyword_matches)
+
+def saveQuestionData(questions,pageImages):
+    
 
 INPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper1')
 OUTPUT_FOLDER = os.path.join(os.getcwd(),'output')
@@ -117,7 +161,8 @@ questions = getQuestionData(pageImages)
 # Add mark scheme data to question list
 for q in questions:
     q['answer'] = markScheme[q['number']]
-print(questions)
+    q['topic'],q['keywords'] = topics(q['tokens'])
+    print(q['number'],q['topic'],q['keywords'])
 removeQuestionNumbers(questions,pageImages)
 drawBoundingBoxes(questions, pageImages)
 saveImages(pageImages,os.path.join(OUTPUT_FOLDER,questionPaper))
