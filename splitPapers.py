@@ -26,6 +26,18 @@ def extractMS(filename):
     answers = {str(i):answers[str(i)] for i in range(1,41)}
     return answers
 
+def adjustBox(image,box,padding = 10):
+    '''adjusts box dimensions to add vertical padding and remove whitespace from bottom'''
+    (left,top,right,bottom) = box
+    # search from bottom to first non-white pixel, row-by-row.
+    for y in range(bottom-10,top,-1):
+        for x in range(left,right):
+            if image.getpixel((x,y)) < (255,255,255):
+                print((x,y),image.getpixel((x,y)))
+                return (left, top - padding, right + padding, y + padding)
+
+
+
 def getQuestionData(pages):
     '''Searches through a paper for question numbers and returns the page
     number, question number, bounding boxes for the question number and the whole question,
@@ -33,7 +45,7 @@ def getQuestionData(pages):
     # set the width of the left margin in which to find question numbers
     numMargin = 170
     # MIss out page footer
-    bottomMargin = 140
+    bottomMargin = 170
     # Reg Ex to look for numbers in strings (might have artifacts)
     numRe = re.compile('\d+')
     # iterate through pages
@@ -67,7 +79,7 @@ def getQuestionData(pages):
                 questions[-1]['tokens'] = tokens
             tokens = []
             question['number'] = numeric[0]
-            top = data['top'][i]
+            top = data['top'][i]-1
             right = left + data['width'][i]
             bottom = data['top'][i] + data['height'][i]
             box = (left,top,right,bottom)
@@ -78,15 +90,15 @@ def getQuestionData(pages):
                 prev_question = questions[-1]
                 if prev_question['page'] == question['page']:
                     # previous question is on same page
-                    prev_question['box'] = (prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,top)
+                    prev_question['box'] = adjustBox(page,(prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,top))
                 else:
                     # previous question is on different page so box ends at page bottom
-                    prev_question['box'] = (prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,page.height-bottomMargin)
+                    prev_question['box'] = adjustBox(pages[questions[-1]['page']],(prev_question['numbox'][0],prev_question['numbox'][1],page.width-left,page.height-bottomMargin))
             print('Processed question ',question['number'],' on page ',question['page'])
             questions.append(question)
     if questions:
         # last question
-        questions[-1]['box'] = (questions[-1]['numbox'][0],questions[-1]['numbox'][1],page.width-prev_question['numbox'][0],page.height-bottomMargin)
+        questions[-1]['box'] = adjustBox(pages[questions[-1]['page']],(questions[-1]['numbox'][0],questions[-1]['numbox'][1],page.width-prev_question['numbox'][0],page.height-bottomMargin))
     return questions
 
 def removeQuestionNumbers(questions, pageImages):
@@ -158,7 +170,6 @@ print("Examining ",questionPaper)
 markScheme = extractMS(filenames[0])
 pageImages = convert_from_path(questionPaper)
 questions = getQuestionData(pageImages)
-
 # Save cropped question image and question data
 os.chdir(OUTPUT_FOLDER)
 # make directory with filename of paper
