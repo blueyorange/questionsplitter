@@ -3,9 +3,9 @@ import bs4
 import os
 
 allowedExtension= 'pdf'
-OUTPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper1')
+OUTPUT_FOLDER = os.path.join(os.getcwd(),'downloads/Paper3')
 os.chdir(OUTPUT_FOLDER)
-res = requests.get('https://www.physicsandmathstutor.com/past-papers/gcse-physics/cie-igcse-paper-1/')
+res = requests.get('https://www.physicsandmathstutor.com/past-papers/gcse-physics/cie-igcse-paper-3/')
 res.raise_for_status()
 soup = bs4.BeautifulSoup(res.text, features="html.parser")
 
